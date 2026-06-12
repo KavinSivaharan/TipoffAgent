@@ -1,31 +1,38 @@
 # Tipoff — Get the tip before everyone else
 
-An agent that finds startups about to break out, based on a user's thesis.
+An AI agent that finds startups about to break out, based on your investment thesis.
 
-## User Flow
+Type what you're hunting for — *"AI infra companies hiring senior MLEs"*, *"B2B SaaS that just raised Series A"*, *"stealth AI founded by ex-OpenAI researchers"* — and watch the agent investigate live across real data sources, verify its candidates, and stream back a ranked list with evidence-cited reasoning.
 
-User types what kind of company they're looking for ("AI infra companies hiring senior MLEs," "stealth AI startups founded by ex-OpenAI people," "B2B SaaS that just raised"). Agent investigates startups across multiple sources live, scores them on breakout potential, returns ranked results with reasoning.
+## How it works
 
-## Stack
+```
+thesis → parse into criteria → agentic investigation → ranked results (SSE)
+```
 
-- Next.js 14 with App Router, TypeScript, Tailwind
-- Anthropic API (Claude Sonnet for reasoning, Haiku for fast classification)
-- Apify API for scraping
-- Server-Sent Events for streaming progress to UI
-- In-memory state, no database
+The agent runs a three-phase loop (Groq tool-calling, `llama-4-scout` for tools + `llama-3.3-70b` for parsing/wrap-up):
 
-## Data Sources
+1. **Discovery** — picks the 3–5 sources most relevant to *your* thesis and searches them with targeted queries
+2. **Verification** — drills into top candidates by name: scrapes their site, checks Twitter for hiring/launch buzz, confirms funding via news/Crunchbase
+3. **Ranking** — scores each company 0–100 with reasoning that must cite specific verified evidence; signals are validated against the sources that actually back them
 
-Build as pluggable modules, each returns normalized `Company[]`:
+Everything streams to the UI via Server-Sent Events: the agent's thinking, every tool call, and results as they're ranked.
 
-1. **YC directory** — full company list with batch, description, website
-2. **Hacker News** — Show HN posts and monthly "Who's Hiring" threads
-3. **GitHub** — trending repos and org activity (stars, commits, contributors)
-4. **SEC EDGAR** — Form D filings (companies that just filed for fundraising)
-5. **News scraping** — Google News queries for funding announcements ("[company] raises Series A")
-6. **LinkedIn company pages** — employee count, hiring velocity, recent senior hires
+## Data sources (agent tools)
 
-### Normalized Shape
+| Tool | Source | Needs Apify? |
+|------|--------|:---:|
+| `search_yc` | Y Combinator full directory (batch, team size, isHiring) | no |
+| `search_hackernews` | Show HN / Launch HN via Algolia | no |
+| `search_hn_hiring` | Latest monthly "Ask HN: Who is hiring?" thread | no |
+| `search_sec_edgar` | SEC Form D filings, last 90 days | no |
+| `search_github` | GitHub weekly trending (repos >20k stars excluded) | yes |
+| `search_news` | Google search for funding announcements | yes |
+| `search_twitter` | X/Twitter hiring, launch, and founder buzz | yes |
+| `search_crunchbase` | Funding history, investors, headcount | yes |
+| `scrape_website` | Single-page enrichment scrape | yes |
+
+Each source returns a normalized `Company[]`:
 
 ```typescript
 {
@@ -33,73 +40,47 @@ Build as pluggable modules, each returns normalized `Company[]`:
   url: string;
   description: string;
   source: string;
-  sourceData: any;
-  signals: {
-    hiring?: boolean;
-    github?: boolean;
-    funding?: boolean;
-    launches?: boolean;
-  };
+  sourceData: Record<string, unknown>; // source-specific rich fields
+  signals: { hiring?: boolean; github?: boolean; funding?: boolean; launches?: boolean };
 }
 ```
 
-## Agent Loop
+## Stack
 
-1. User submits thesis via `POST /api/investigate`
-2. Claude parses thesis into structured criteria (industry, stage, signals to prioritize)
-3. Fetch candidates from all 6 sources in parallel via Apify
-4. Claude filters and dedupes to top 15 candidates matching criteria
-5. For each candidate in parallel: enrich with website scrape, GitHub stats, LinkedIn data, recent news
-6. Claude scores each company 0-100 on breakout signal with 2-sentence reasoning citing specific signals
-7. Stream results back to UI as they complete, ranked by score
+- Next.js 14 (App Router) + TypeScript + React 18
+- Groq SDK for LLM reasoning and tool-calling
+- Apify for the scraping-backed sources
+- Server-Sent Events for live streaming — no database, no queue
 
-## UI (Single Page, Dark Mode)
+## Getting started
 
-- **Hero:** "Tipoff — Get the tip before everyone else"
-- **Big text input:** "What kind of company are you looking for?"
-- **Activity feed** (terminal-style, monospace) showing the agent's work in real-time:
-  - "Scanning YC W25 batch... found 47 candidates"
-  - "Cross-referencing with HN Who's Hiring..."
-  - "SEC EDGAR: 3 Form D filings in last 30 days match criteria"
-  - "Investigating Cerebras: GitHub +2.3k stars last week, 5 senior hires on LinkedIn"
-  - "Score: 89 — strong hiring + GitHub momentum"
-- **Results section:** cards for each company streaming in as ranked. Each card shows:
-  - Company name
-  - Source badges (which sources it appeared in)
-  - Breakout score (0-100, visualized as a bar)
-  - 2-sentence reasoning citing specific signals
-  - Links to website, GitHub, LinkedIn
+```bash
+npm install
+cp .env.example .env.local   # add your keys
+npm run dev
+```
 
-### Style
+| Env var | Required | Notes |
+|---------|:---:|-------|
+| `GROQ_API_KEY` | yes | [console.groq.com/keys](https://console.groq.com/keys) |
+| `APIFY_API_TOKEN` | no | enables GitHub/news/Twitter/Crunchbase/scrape tools; YC + HN + SEC work without it |
+| `SEC_USER_AGENT` | no | polite UA for EDGAR, e.g. `myapp contact@me.com` |
 
-Dark mode, monospace for activity feed, clean serif or sans for cards. Cards animate in as they're scored.
+Open [http://localhost:3000](http://localhost:3000), type a thesis (or click a demo pill), and hit **Investigate**. Results usually land in 30–60 seconds. A **Stop** button cancels a running investigation.
 
-## Build Order
+## Project layout
 
-1. Scaffold Next.js + Tailwind + env setup (Anthropic + Apify keys)
-2. Build source modules one at a time, starting with YC (the bounded one)
-3. Create `/api/investigate` route returning mock data
-4. Wire Claude for thesis parsing + scoring
-5. Add real Apify scrapers for each source progressively
-6. Add SSE streaming for live updates
-7. Build the live activity feed UI
-8. Build result cards with animations
-9. Polish: copy, edge cases, demo theses
-10. Pre-test 2-3 demo theses that always return clean results
+```
+src/
+├── app/
+│   ├── api/investigate/route.ts   # POST endpoint, SSE stream
+│   └── page.tsx                   # single-page UI (feed + results)
+└── lib/
+    ├── thesis.ts                  # thesis → structured criteria (few-shot)
+    ├── claude.ts                  # 3-phase agent loop + result validation
+    └── sources/                   # one module per data source + tool registry
+```
 
-## Demo Path Priority
+## Scout
 
-"User types thesis → watches agent investigate live across multiple sources → sees ranked results in 30-45 seconds." Optimize entire build for that path.
-
-## Cuts (drop in this order if time is tight)
-
-1. LinkedIn scraping (most flaky)
-2. SEC EDGAR (less visual)
-3. News scraping
-4. Keep YC + HN + GitHub minimum for the demo
-5. Cache all source data once at startup
-6. Hardcode fallback companies if any scraper fails
-
-## First Step
-
-Scaffold the Next.js app, set up env vars for Anthropic and Apify, write a hello-world test for both APIs. Confirm both work before building anything else.
+`SCOUT_README.md` documents a separate, deeper research workflow (`/scout`) that runs as a Claude Code command with Apify MCP — same mission, different surface.
