@@ -287,7 +287,7 @@ export default function Home() {
                 lineHeight: 1.2, color: "#888", maxWidth: 480,
               }}>
                 Find the breakout{" "}
-                <span style={{ color: "#fff" }}>before it's obvious.</span>
+                <span style={{ color: "#fff" }}>before it&apos;s obvious.</span>
               </h1>
             </div>
 
