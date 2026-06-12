@@ -1,6 +1,8 @@
 import Groq from "groq-sdk";
-import { ScoredCompany, ThesisCriteria, InvestigationEvent } from "./types";
+import { Company, ScoredCompany, ThesisCriteria, InvestigationEvent } from "./types";
 import { toolDefinitions, executeTool, summarizeToolResult } from "./sources";
+import { computeEvidenceScore, blendScores } from "./scoring";
+import { nameKey } from "./db";
 
 function getClient() {
   return new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -173,6 +175,9 @@ Start your investigation. Think about which sources will be most useful for this
   // Track candidate companies surfaced in tool results, so we can name them
   // explicitly in the verification nudge.
   const candidates = new Map<string, { sources: Set<string>; url?: string }>();
+  // Raw evidence per company (normalized name) — feeds the deterministic
+  // scoring engine when the final ranking is parsed.
+  const evidenceMap = new Map<string, Company[]>();
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     // Rate limit buffer
@@ -201,7 +206,7 @@ Start your investigation. Think about which sources will be most useful for this
           message: "Recovered final ranking from Groq parser failure.",
           iteration: i + 1,
         });
-        const results = parseFinalResults(recovered);
+        const results = parseFinalResults(recovered, evidenceMap);
         if (results.length > 0) return results;
       }
       throw err;
@@ -300,7 +305,7 @@ Speak about candidates BY NAME in your thinking ("Now investigating Cardinal..."
       });
 
       if (assistantMessage.content) {
-        return parseFinalResults(assistantMessage.content);
+        return parseFinalResults(assistantMessage.content, evidenceMap);
       }
       break;
     }
@@ -367,6 +372,14 @@ Speak about candidates BY NAME in your thinking ("Now investigating Cardinal..."
             if (!entry.url && c.url) entry.url = c.url;
             candidates.set(key, entry);
           }
+          // Accumulate full raw evidence for deterministic scoring.
+          for (const c of result.companies) {
+            if (!c.name) continue;
+            const key = nameKey(c.name);
+            const list = evidenceMap.get(key) || [];
+            list.push(c);
+            evidenceMap.set(key, list);
+          }
         }
 
         onEvent({
@@ -423,7 +436,7 @@ Speak about candidates BY NAME in your thinking ("Now investigating Cardinal..."
     onEvent({ type: "thinking", message: finalText });
   }
 
-  return parseFinalResults(finalText);
+  return parseFinalResults(finalText, evidenceMap);
 }
 
 interface RawCompany {
@@ -436,7 +449,10 @@ interface RawCompany {
   signals?: Record<string, boolean>;
 }
 
-function parseFinalResults(text: string): ScoredCompany[] {
+function parseFinalResults(
+  text: string,
+  evidenceMap?: Map<string, Company[]>
+): ScoredCompany[] {
   const companies = tryExtractCompanies(text) as RawCompany[] | null;
   if (!companies) return [];
   try {
@@ -479,14 +495,25 @@ function parseFinalResults(text: string): ScoredCompany[] {
             reasoning = `${reasoning} [low-evidence]`;
           }
 
+          // Deterministic score from gathered evidence, blended with the
+          // LLM's judgment. Evidence does the arithmetic; the LLM narrates.
+          const llmScore = c.score || 50;
+          const evidence = evidenceMap?.get(nameKey(c.name || "")) || [];
+          const evidenceScore = computeEvidenceScore(evidence);
+          const score = blendScores(llmScore, evidenceScore);
+
           return {
             name: c.name || "Unknown",
             url: c.url || "",
             description: c.description || "",
             source: sources[0] || "agent",
-            sourceData: {},
+            sourceData: {
+              llm_score: llmScore,
+              evidence_score: evidenceScore.total,
+              score_breakdown: evidenceScore.components,
+            },
             signals: validatedSignals,
-            score: c.score || 50,
+            score,
             reasoning,
             sources,
           };
