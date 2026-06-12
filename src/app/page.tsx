@@ -640,6 +640,21 @@ function ResultRow({ company, rank }: { company: ScoredCompany; rank: number }) 
             <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: "-0.02em", color: "#e8e8e8" }}>{company.name}</span>
             <span style={{ fontSize: 10, color: "#222", fontFamily: "monospace" }}>#{rank + 1}</span>
             <SignalPips signals={company.signals} />
+            {company.isNew && (
+              <span style={{
+                fontSize: 9, fontFamily: "monospace", fontWeight: 700,
+                color: "#0d0d0d", background: "#e8e8e8",
+                padding: "1px 5px", borderRadius: 2, letterSpacing: "0.05em",
+              }}>NEW</span>
+            )}
+            {typeof company.delta === "number" && company.delta !== 0 && (
+              <span style={{
+                fontSize: 10, fontFamily: "monospace", fontWeight: 600,
+                color: company.delta > 0 ? "#4ade80" : "#c0392b",
+              }}>
+                {company.delta > 0 ? `↑+${company.delta}` : `↓${company.delta}`}
+              </span>
+            )}
           </div>
           <span style={{ fontSize: 12, color: "#333", letterSpacing: "-0.01em" }}>{company.description}</span>
         </div>
