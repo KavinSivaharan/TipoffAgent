@@ -527,8 +527,18 @@ function ResultRow({ company, rank }: { company: ScoredCompany; rank: number }) 
           </div>
           <span style={{ fontSize: 12, color: "#333", letterSpacing: "-0.01em" }}>{company.description}</span>
         </div>
-        <div style={{ textAlign: "right", fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em", color: scoreColor }}>
-          {company.score}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <span style={{ textAlign: "right", fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em", color: scoreColor }}>
+            {company.score}
+          </span>
+          <div style={{ width: 44, height: 2, background: "#1a1a1a", borderRadius: 1, overflow: "hidden" }}>
+            <div style={{
+              width: `${Math.min(Math.max(company.score, 0), 100)}%`,
+              height: "100%",
+              background: scoreColor,
+              transition: "width 0.6s ease-out",
+            }} />
+          </div>
         </div>
       </div>
       {open && (
