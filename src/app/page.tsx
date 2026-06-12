@@ -108,12 +108,39 @@ function ExampleCard({ name, score, tag, signal, delay }: {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
+interface RunSummary {
+  id: number;
+  thesis: string;
+  resultCount: number;
+  durationMs: number | null;
+  createdAt: string;
+}
+
+interface RecentFind {
+  name: string;
+  score: number;
+  url: string;
+  description: string;
+  signals: Record<string, boolean>;
+  seenAt: string;
+}
+
+function timeAgo(iso: string): string {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
 export default function Home() {
   const [thesis, setThesis] = useState("");
   const [isInvestigating, setIsInvestigating] = useState(false);
   const [feedMessages, setFeedMessages] = useState<FeedMessage[]>([]);
   const [results, setResults] = useState<ScoredCompany[]>([]);
   const [elapsed, setElapsed] = useState(0);
+  const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [recentFinds, setRecentFinds] = useState<RecentFind[]>([]);
   const feedRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +149,42 @@ export default function Home() {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  async function refreshHistory() {
+    try {
+      const res = await fetch("/api/runs");
+      if (!res.ok) return;
+      const data = await res.json();
+      setRuns(data.runs || []);
+      setRecentFinds(data.recentFinds || []);
+    } catch {
+      // history is non-critical — ignore
+    }
+  }
+
+  useEffect(() => {
+    refreshHistory();
+  }, []);
+
+  useEffect(() => {
+    if (!isInvestigating) refreshHistory();
+  }, [isInvestigating]);
+
+  async function loadRun(run: RunSummary) {
+    try {
+      const res = await fetch(`/api/runs/${run.id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setThesis(data.run.thesis);
+      setResults(data.results || []);
+      setFeedMessages([{
+        type: "status",
+        text: `Loaded past investigation #${run.id} (${timeAgo(run.createdAt)}) — "${run.thesis}"`,
+      }]);
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     if (isInvestigating) {
@@ -379,20 +442,73 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Example results */}
-            <div>
+            {/* Recent finds — real data once you've run an investigation */}
+            <div style={{ marginBottom: 44 }}>
               <div style={{
                 fontSize: 10, color: "#252525", fontFamily: "monospace",
                 letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12,
               }}>
-                Recent finds — example
+                {recentFinds.length > 0 ? "Recent finds" : "Recent finds — example"}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {EXAMPLE_FINDS.map((f, i) => (
-                  <ExampleCard key={f.name} {...f} delay={i * 60} />
-                ))}
+                {recentFinds.length > 0
+                  ? recentFinds.map((f, i) => (
+                      <ExampleCard
+                        key={`${f.name}-${i}`}
+                        name={f.name}
+                        score={f.score}
+                        tag={timeAgo(f.seenAt)}
+                        signal={Object.entries(f.signals).find(([, v]) => v)?.[0] || "scored"}
+                        delay={i * 60}
+                      />
+                    ))
+                  : EXAMPLE_FINDS.map((f, i) => (
+                      <ExampleCard key={f.name} {...f} delay={i * 60} />
+                    ))}
               </div>
             </div>
+
+            {/* Past investigations */}
+            {runs.length > 0 && (
+              <div>
+                <div style={{
+                  fontSize: 10, color: "#252525", fontFamily: "monospace",
+                  letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12,
+                }}>
+                  Past investigations
+                </div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {runs.slice(0, 8).map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => loadRun(r)}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        gap: 12, padding: "9px 2px", background: "transparent",
+                        border: "none", borderBottom: "1px solid #161616",
+                        cursor: "pointer", textAlign: "left", width: "100%",
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#101010")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <span style={{
+                        fontSize: 12, color: "#666", letterSpacing: "-0.01em",
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      }}>
+                        {r.thesis}
+                      </span>
+                      <span style={{
+                        fontSize: 10, color: "#2e2e2e", fontFamily: "monospace",
+                        whiteSpace: "nowrap", flexShrink: 0,
+                      }}>
+                        {r.resultCount} found · {timeAgo(r.createdAt)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 
