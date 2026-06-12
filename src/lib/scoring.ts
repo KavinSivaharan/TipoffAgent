@@ -61,10 +61,15 @@ export function computeEvidenceScore(evidence: Company[]): EvidenceScore {
       }
       case "github": {
         const stars = asNum(d.stars) || 0;
-        const trending = asNum(d.trending_stars) || 0;
-        if (trending >= 500) add(`+${trending} stars this week`, 15);
-        else if (trending >= 100) add(`+${trending} stars this week`, 10);
-        else if (trending > 0) add(`+${trending} stars this week`, 5);
+        const ageDays = asNum(d.repo_age_days);
+        // Star velocity: stars accumulated fast in a young repo is the
+        // strongest developer-momentum signal we can compute.
+        if (ageDays !== null && ageDays > 0) {
+          const starsPerMonth = stars / (ageDays / 30);
+          if (starsPerMonth >= 1000) add(`~${Math.round(starsPerMonth)} stars/mo`, 15);
+          else if (starsPerMonth >= 200) add(`~${Math.round(starsPerMonth)} stars/mo`, 10);
+          else if (starsPerMonth >= 50) add(`~${Math.round(starsPerMonth)} stars/mo`, 5);
+        }
         // Sweet spot: real traction but not yet broken out.
         if (stars >= 1000 && stars <= 20000) add(`${stars} stars (breakout range)`, 8);
         else if (stars >= 200) add(`${stars} stars`, 4);

@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
         send({
           type: "status",
           message: isApifyConfigured()
-            ? "Apify Store: connected (search_github, search_news, search_twitter, search_crunchbase, scrape_website use your API token)."
-            : "Apify Store: not configured — add APIFY_API_TOKEN to .env.local (see .env.example) and restart. YC, HN, and SEC EDGAR still work.",
+            ? "Apify Store: connected (search_news, search_twitter, search_crunchbase, scrape_website use your API token)."
+            : "Apify Store: not configured — add APIFY_API_TOKEN to .env.local (see .env.example) and restart. YC, HN, GitHub, and SEC EDGAR still work.",
         });
         const results = await runAgentLoop(thesis, criteria, send);
 

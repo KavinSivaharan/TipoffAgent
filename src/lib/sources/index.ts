@@ -68,7 +68,7 @@ export const toolDefinitions = [
     function: {
       name: "search_github",
       description:
-        "Fetch GitHub's WEEKLY TRENDING repos and filter by your query keywords (repos over 20k stars are excluded — already broken out). Returns stars, forks, language, trending_stars — strong developer-momentum signal. Note: only surfaces currently-trending repos, not a full GitHub search.",
+        "Search GitHub repos via the official API: 100-20k stars (the breakout band), pushed within 60 days, matched on name/description/topics. Returns stars, forks, language, topics, repo_age_days — star velocity in a young repo is a strong developer-momentum signal.",
       parameters: {
         type: "object" as const,
         properties: {
