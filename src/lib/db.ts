@@ -36,6 +36,12 @@ export function getDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_sightings_name_key ON sightings(name_key, id);
     CREATE INDEX IF NOT EXISTS idx_sightings_run ON sightings(run_id);
+
+    CREATE TABLE IF NOT EXISTS watchlist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thesis TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
   `);
   return db;
 }
@@ -123,6 +129,31 @@ export function getRunSightings(runId: number): SightingRow[] {
   return getDb()
     .prepare("SELECT * FROM sightings WHERE run_id = ? ORDER BY score DESC")
     .all(runId) as SightingRow[];
+}
+
+export interface WatchlistRow {
+  id: number;
+  thesis: string;
+  created_at: string;
+}
+
+export function listWatchlist(): WatchlistRow[] {
+  return getDb()
+    .prepare("SELECT * FROM watchlist ORDER BY id DESC")
+    .all() as WatchlistRow[];
+}
+
+export function addToWatchlist(thesis: string): WatchlistRow {
+  getDb()
+    .prepare("INSERT OR IGNORE INTO watchlist (thesis) VALUES (?)")
+    .run(thesis.trim());
+  return getDb()
+    .prepare("SELECT * FROM watchlist WHERE thesis = ?")
+    .get(thesis.trim()) as WatchlistRow;
+}
+
+export function removeFromWatchlist(id: number): void {
+  getDb().prepare("DELETE FROM watchlist WHERE id = ?").run(id);
 }
 
 /** Highest-scored recent sightings, deduped by company — powers the idle "recent finds". */
