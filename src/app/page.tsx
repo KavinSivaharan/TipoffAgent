@@ -293,7 +293,7 @@ export default function Home() {
                 marginBottom: 40,
               }}>
                 {[
-                  { n: "6", label: "Data sources" },
+                  { n: "8", label: "Data sources" },
                   { n: "2.4k", label: "Companies indexed" },
                   { n: "< 60s", label: "To results" },
                 ].map(({ n, label }, i) => (
