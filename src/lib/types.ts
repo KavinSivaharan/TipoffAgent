@@ -16,6 +16,10 @@ export interface ScoredCompany extends Company {
   score: number;
   reasoning: string;
   sources: string[];
+  /** True if this company has never appeared in a previous run. */
+  isNew?: boolean;
+  /** Score change vs the most recent previous sighting (null if first sighting). */
+  delta?: number | null;
 }
 
 export interface ThesisCriteria {
