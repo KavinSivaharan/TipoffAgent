@@ -117,6 +117,9 @@ export default function Home() {
   const feedRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -137,6 +140,10 @@ export default function Home() {
     }, 30);
   }
 
+  function handleCancel() {
+    abortRef.current?.abort();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!thesis.trim() || isInvestigating) return;
@@ -144,14 +151,26 @@ export default function Home() {
     setFeedMessages([]);
     setResults([]);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const res = await fetch("/api/investigate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ thesis }),
+        signal: controller.signal,
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        addFeedMessage({ type: "error", text: err?.error || `Request failed (${res.status})` });
+        return;
+      }
       const reader = res.body?.getReader();
-      if (!reader) return;
+      if (!reader) {
+        addFeedMessage({ type: "error", text: "No response stream from server" });
+        return;
+      }
       const decoder = new TextDecoder();
       let buffer = "";
 
@@ -163,20 +182,31 @@ export default function Home() {
         buffer = lines.pop() || "";
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
-          const data: InvestigationEvent = JSON.parse(line.slice(6));
+          let data: InvestigationEvent;
+          try {
+            data = JSON.parse(line.slice(6));
+          } catch {
+            continue;
+          }
           switch (data.type) {
             case "thinking": addFeedMessage({ type: "thinking", text: data.message || "", iteration: data.iteration }); break;
             case "tool_call": addFeedMessage({ type: "tool_call", text: `${data.toolName}(${fmtArgs(data.toolArgs)})`, iteration: data.iteration }); break;
             case "tool_result": addFeedMessage({ type: "tool_result", text: data.message || "", iteration: data.iteration }); break;
             case "status": addFeedMessage({ type: "status", text: data.message || "" }); break;
             case "result": if (data.company) setResults((prev) => [...prev, data.company!].sort((a, b) => b.score - a.score)); break;
-            case "done": addFeedMessage({ type: "status", text: data.message || "Done." }); setIsInvestigating(false); break;
-            case "error": addFeedMessage({ type: "error", text: data.message || "Unknown error" }); setIsInvestigating(false); break;
+            case "done": addFeedMessage({ type: "status", text: data.message || "Done." }); break;
+            case "error": addFeedMessage({ type: "error", text: data.message || "Unknown error" }); break;
           }
         }
       }
-    } catch {
-      addFeedMessage({ type: "error", text: "Connection failed" });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        addFeedMessage({ type: "status", text: "Investigation cancelled." });
+      } else {
+        addFeedMessage({ type: "error", text: "Connection failed" });
+      }
+    } finally {
+      abortRef.current = null;
       setIsInvestigating(false);
     }
   }
@@ -388,19 +418,20 @@ export default function Home() {
                   onBlur={(e) => (e.currentTarget.style.borderColor = "#222")}
                 />
                 <button
-                  type="submit"
-                  disabled={isInvestigating || !thesis.trim()}
+                  type={isInvestigating ? "button" : "submit"}
+                  onClick={isInvestigating ? handleCancel : undefined}
+                  disabled={!isInvestigating && !thesis.trim()}
                   style={{
                     background: !isInvestigating && thesis.trim() ? "#fff" : "transparent",
-                    color: !isInvestigating && thesis.trim() ? "#0d0d0d" : "#333",
+                    color: isInvestigating ? "#888" : thesis.trim() ? "#0d0d0d" : "#333",
                     border: "1px solid " + (!isInvestigating && thesis.trim() ? "#fff" : "#222"),
                     borderRadius: 6, padding: "10px 18px", fontSize: 12,
                     fontWeight: 600, letterSpacing: "-0.01em",
                     transition: "all 0.12s", whiteSpace: "nowrap",
-                    cursor: !isInvestigating && thesis.trim() ? "pointer" : "default",
+                    cursor: isInvestigating || thesis.trim() ? "pointer" : "default",
                   }}
                 >
-                  {isInvestigating ? `${elapsed}s…` : "Run again"}
+                  {isInvestigating ? `Stop · ${elapsed}s` : "Run again"}
                 </button>
               </div>
             </form>
