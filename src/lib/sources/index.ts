@@ -6,6 +6,7 @@ import { fetchSECEdgarCompanies } from "./sec-edgar";
 import { fetchNewsCompanies } from "./news";
 import { fetchTwitterCompanies } from "./twitter";
 import { fetchCrunchbaseCompanies } from "./crunchbase";
+import { checkJobOpenings } from "./jobs";
 import { scrapeWebsite } from "./scraper";
 
 export const toolDefinitions = [
@@ -156,6 +157,24 @@ export const toolDefinitions = [
   {
     type: "function" as const,
     function: {
+      name: "check_job_openings",
+      description:
+        "VERIFICATION tool: check a specific company's public Greenhouse/Lever/Ashby job board. Returns exact open-role count, senior/technical role counts, and sample titles — hard hiring evidence, free, instant. Use during Phase 2 on promising candidates.",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          company: {
+            type: "string" as const,
+            description: "The company name exactly as found (e.g. 'Anysphere', 'Mintlify')",
+          },
+        },
+        required: ["company"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "scrape_website",
       description:
         "Scrape a company's website to get more details about what they do, their team, product, and traction. Use this to enrich data on promising candidates.",
@@ -206,6 +225,13 @@ export async function executeTool(
         return { companies: await fetchTwitterCompanies(keywords) };
       case "search_crunchbase":
         return { companies: await fetchCrunchbaseCompanies(keywords) };
+      case "check_job_openings": {
+        const company = (args.company as string) || query;
+        const found = await checkJobOpenings(company);
+        return found
+          ? { companies: [found] }
+          : { text: `No public Greenhouse, Lever, or Ashby job board found for "${company}". They may use a different ATS — try scrape_website on their careers page.` };
+      }
       case "scrape_website":
         return { text: await scrapeWebsite(args.url as string) };
       default:
@@ -251,6 +277,11 @@ const RICH_FIELDS = [
   "last_funding_amount",
   "employee_count",
   "founded_year",
+  // jobs
+  "open_roles",
+  "senior_roles",
+  "technical_roles",
+  "board",
   // twitter
   "handle",
   "verified",

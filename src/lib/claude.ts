@@ -92,6 +92,7 @@ THREE PHASES. The user watches the activity feed live — make every line earn i
 
 ═══ P2 VERIFICATION (this is what makes you agentic) ═══
 Pick top 3-5 candidates BY NAME. For EACH, run at least one drill-down call:
+- check_job_openings("<company name>") for exact open-role counts (free, instant — best first check)
 - search_twitter("<company name>") for hiring/launches/founder
 - scrape_website(<url>) for careers page + team
 - search_news("<name> funding") for round confirmation
@@ -116,7 +117,7 @@ Final JSON:
 ═══ HARD RULES ═══
 
 EVIDENCE: signal=true ONLY if a tool result contained evidence:
-- hiring: search_hn_hiring post, search_twitter hiring tweet, scrape careers page, news re hires, OR YC isHiring:true
+- hiring: check_job_openings roles, search_hn_hiring post, search_twitter hiring tweet, scrape careers page, news re hires, OR YC isHiring:true
 - github: search_github returned the company
 - funding: SEC Form D, Crunchbase, news with $ amount, OR funding tweet
 - launches: Show HN, YC batch, OR launch tweet
@@ -262,6 +263,7 @@ ${topNames.join(", ")}
 
 ═══ NOW: PHASE 2 — VERIFICATION ═══
 Pick 3-5 of these candidates (or others you've found) and DRILL INTO EACH ONE BY NAME. For each, do at least ONE of:
+- check_job_openings("<company name>") for exact open-role counts from their job board
 - search_twitter("<company name>") to find hiring tweets, launches, founder activity
 - scrape_website(<their url>) to verify hiring claims, team page, product
 - search_news("<company name> funding") to check recent funding
@@ -469,7 +471,7 @@ function parseFinalResults(
 
           // Validate signals against sources actually used for this company.
           // If a signal is true but no supporting source backs it, force false.
-          const hiringBackers = ["linkedin", "news", "scrape", "scraper", "scrape_website", "twitter", "x", "yc", "ycombinator", "search_yc", "whoishiring", "hn_hiring", "hn-hiring"];
+          const hiringBackers = ["linkedin", "news", "scrape", "scraper", "scrape_website", "twitter", "x", "yc", "ycombinator", "search_yc", "whoishiring", "hn_hiring", "hn-hiring", "jobs", "greenhouse", "lever"];
           const fundingBackers = [
             "sec-edgar",
             "sec_edgar",
