@@ -1,6 +1,6 @@
 import { Company } from "../types";
 import { fetchYCCompanies } from "./yc";
-import { fetchHNCompanies } from "./hackernews";
+import { fetchHNCompanies, fetchHNHiringCompanies } from "./hackernews";
 import { fetchGitHubCompanies } from "./github";
 import { fetchSECEdgarCompanies } from "./sec-edgar";
 import { fetchNewsCompanies } from "./news";
@@ -39,6 +39,24 @@ export const toolDefinitions = [
           query: {
             type: "string" as const,
             description: "Search query (e.g. 'LLM', 'open source database', 'monitoring')",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "search_hn_hiring",
+      description:
+        "Search the latest monthly 'Ask HN: Who is hiring?' thread. Returns companies actively hiring RIGHT NOW with role/location from their post — the strongest free hiring signal. Great for 'companies hiring engineers' style theses.",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          query: {
+            type: "string" as const,
+            description: "Role/tech keywords (e.g. 'machine learning', 'rust', 'infra') — leave broad, the thread is pre-filtered to hiring companies",
           },
         },
         required: ["query"],
@@ -176,6 +194,8 @@ export async function executeTool(
         return { companies: await fetchYCCompanies(keywords) };
       case "search_hackernews":
         return { companies: await fetchHNCompanies(keywords) };
+      case "search_hn_hiring":
+        return { companies: await fetchHNHiringCompanies(keywords) };
       case "search_github":
         return { companies: await fetchGitHubCompanies(keywords) };
       case "search_sec_edgar":

@@ -80,7 +80,7 @@ const SYSTEM_PROMPT = `You are Tipoff — an INVESTIGATIVE AGENT, not a search a
 THREE PHASES. The user watches the activity feed live — make every line earn its place.
 
 ═══ P1 DISCOVERY ═══
-- Pick 3-5 sources most relevant to THIS thesis (sources: search_yc, search_hackernews, search_github, search_sec_edgar, search_news, search_twitter, search_crunchbase).
+- Pick 3-5 sources most relevant to THIS thesis (sources: search_yc, search_hackernews, search_hn_hiring, search_github, search_sec_edgar, search_news, search_twitter, search_crunchbase).
 - Use SHORT 2-3 word queries — NOT the verbatim thesis.
 - Before each call: 1 sentence ("Hypothesis: <thesis-word> startups will surface on YC because...").
 - After each result: 1 sentence synthesis ("Found 3 strong fits: X, Y, Z. Z stands out because...").
@@ -113,7 +113,7 @@ Final JSON:
 ═══ HARD RULES ═══
 
 EVIDENCE: signal=true ONLY if a tool result contained evidence:
-- hiring: search_twitter hiring tweet, scrape careers page, news re hires, OR YC isHiring:true
+- hiring: search_hn_hiring post, search_twitter hiring tweet, scrape careers page, news re hires, OR YC isHiring:true
 - github: search_github returned the company
 - funding: SEC Form D, Crunchbase, news with $ amount, OR funding tweet
 - launches: Show HN, YC batch, OR launch tweet
@@ -157,6 +157,7 @@ Start your investigation. Think about which sources will be most useful for this
   const ALL_SEARCH_SOURCES = [
     "search_yc",
     "search_hackernews",
+    "search_hn_hiring",
     "search_github",
     "search_sec_edgar",
     "search_news",
@@ -448,7 +449,7 @@ function parseFinalResults(text: string): ScoredCompany[] {
 
           // Validate signals against sources actually used for this company.
           // If a signal is true but no supporting source backs it, force false.
-          const hiringBackers = ["linkedin", "news", "scrape", "scraper", "scrape_website", "twitter", "x", "yc", "ycombinator", "search_yc"];
+          const hiringBackers = ["linkedin", "news", "scrape", "scraper", "scrape_website", "twitter", "x", "yc", "ycombinator", "search_yc", "whoishiring", "hn_hiring", "hn-hiring"];
           const fundingBackers = [
             "sec-edgar",
             "sec_edgar",

@@ -4,6 +4,7 @@ import { ThesisCriteria } from "./types";
 const KNOWN_SOURCES = [
   "search_yc",
   "search_hackernews",
+  "search_hn_hiring",
   "search_github",
   "search_sec_edgar",
   "search_news",
@@ -96,6 +97,7 @@ function buildPrompt(thesis: string, retry = false): string {
 Available data sources:
 - search_yc: early-stage startups by sector (best for stage filtering, sector queries)
 - search_hackernews: Show HN posts (best for launches, traction signals)
+- search_hn_hiring: latest HN "Who is hiring?" thread (best for active-hiring theses)
 - search_github: trending repos (best for dev tools, OSS, tech-stack queries)
 - search_sec_edgar: Form D filings (best for "just raised", funding signals — useless for stealth)
 - search_news: Google News (best for funding announcements, recent news)
