@@ -5,6 +5,7 @@ import { fetchGitHubCompanies } from "./github";
 import { fetchSECEdgarCompanies } from "./sec-edgar";
 import { fetchNewsCompanies } from "./news";
 import { fetchTwitterCompanies } from "./twitter";
+import { fetchCrunchbaseCompanies } from "./crunchbase";
 import { scrapeWebsite } from "./scraper";
 
 export const toolDefinitions = [
@@ -119,6 +120,24 @@ export const toolDefinitions = [
   {
     type: "function" as const,
     function: {
+      name: "search_crunchbase",
+      description:
+        "Search Crunchbase via Apify. Best source for FUNDING history: returns funding_total, last_funding_round, last_funding_date, last_funding_amount, investors, employee_count, founded_year, headquarters. Use to verify funding claims on promising candidates.",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          query: {
+            type: "string" as const,
+            description: "Search query (e.g. 'AI infrastructure', a company name, or a sector)",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "scrape_website",
       description:
         "Scrape a company's website to get more details about what they do, their team, product, and traction. Use this to enrich data on promising candidates.",
@@ -165,6 +184,8 @@ export async function executeTool(
         return { companies: await fetchNewsCompanies(keywords) };
       case "search_twitter":
         return { companies: await fetchTwitterCompanies(keywords) };
+      case "search_crunchbase":
+        return { companies: await fetchCrunchbaseCompanies(keywords) };
       case "scrape_website":
         return { text: await scrapeWebsite(args.url as string) };
       default:

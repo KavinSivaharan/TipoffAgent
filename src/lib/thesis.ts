@@ -8,6 +8,7 @@ const KNOWN_SOURCES = [
   "search_sec_edgar",
   "search_news",
   "search_twitter",
+  "search_crunchbase",
   "scrape_website",
 ] as const;
 
@@ -99,6 +100,7 @@ Available data sources:
 - search_sec_edgar: Form D filings (best for "just raised", funding signals — useless for stealth)
 - search_news: Google News (best for funding announcements, recent news)
 - search_twitter: X/Twitter (best for hiring tweets, real-time launches, founder buzz)
+- search_crunchbase: Crunchbase (best for funding history, investors, headcount — useless for stealth)
 - scrape_website: enrichment (not a primary search tool)
 
 For priority_sources, return an ORDERED list of 4-6 source tool names that best fit THIS thesis. Skip sources that won't help (e.g. SEC EDGAR for stealth companies, GitHub for non-technical sectors).

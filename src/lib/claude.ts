@@ -80,7 +80,7 @@ const SYSTEM_PROMPT = `You are Tipoff — an INVESTIGATIVE AGENT, not a search a
 THREE PHASES. The user watches the activity feed live — make every line earn its place.
 
 ═══ P1 DISCOVERY ═══
-- Pick 3-5 sources most relevant to THIS thesis (sources: search_yc, search_hackernews, search_github, search_sec_edgar, search_news, search_twitter).
+- Pick 3-5 sources most relevant to THIS thesis (sources: search_yc, search_hackernews, search_github, search_sec_edgar, search_news, search_twitter, search_crunchbase).
 - Use SHORT 2-3 word queries — NOT the verbatim thesis.
 - Before each call: 1 sentence ("Hypothesis: <thesis-word> startups will surface on YC because...").
 - After each result: 1 sentence synthesis ("Found 3 strong fits: X, Y, Z. Z stands out because...").
@@ -92,6 +92,7 @@ Pick top 3-5 candidates BY NAME. For EACH, run at least one drill-down call:
 - search_twitter("<company name>") for hiring/launches/founder
 - scrape_website(<url>) for careers page + team
 - search_news("<name> funding") for round confirmation
+- search_crunchbase("<company name>") for funding history, investors, headcount
 
 Speak about candidates by name in your thinking: "Now investigating Cardinal — checking Twitter for hiring activity..."
 
@@ -160,6 +161,7 @@ Start your investigation. Think about which sources will be most useful for this
     "search_sec_edgar",
     "search_news",
     "search_twitter",
+    "search_crunchbase",
   ];
   // Verification = drill-down calls (scrape + targeted searches by company name)
   // We count any tool call made AFTER the verification phase begins.
