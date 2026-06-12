@@ -3,6 +3,7 @@ import { isApifyConfigured } from "@/lib/apify";
 import { runAgentLoop } from "@/lib/claude";
 import { parseThesis } from "@/lib/thesis";
 import { InvestigationEvent } from "@/lib/types";
+import { createRun, finishRun, saveSighting, previousSighting } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   const { thesis } = await req.json();
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       }
 
+      const startedAt = Date.now();
       try {
         // Step 1: Parse thesis
         send({ type: "status", message: "Parsing your investment thesis..." });
@@ -50,14 +52,27 @@ export async function POST(req: NextRequest) {
         });
         const results = await runAgentLoop(thesis, criteria, send);
 
-        // Step 3: Emit final results
+        // Step 3: Persist the run and diff each company against its most
+        // recent prior sighting — momentum (score delta, first appearance)
+        // is the real tip, not the absolute score.
+        const runId = createRun(thesis, criteria);
+        for (const company of results) {
+          const prev = previousSighting(company.name, runId);
+          company.isNew = !prev;
+          company.delta = prev ? company.score - prev.score : null;
+          saveSighting(runId, company);
+        }
+        finishRun(runId, results.length, Date.now() - startedAt);
+
+        // Step 4: Emit final results
         for (const company of results) {
           send({ type: "result", company });
         }
 
+        const newCount = results.filter((c) => c.isNew).length;
         send({
           type: "done",
-          message: `Investigation complete. Found ${results.length} matching companies.`,
+          message: `Investigation complete. Found ${results.length} matching companies${newCount > 0 ? ` (${newCount} never seen before)` : ""}.`,
         });
       } catch (error) {
         send({
