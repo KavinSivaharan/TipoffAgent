@@ -675,6 +675,7 @@ function ResultRow({ company, rank }: { company: ScoredCompany; rank: number }) 
       {open && (
         <div className="fade-up" style={{ paddingBottom: 14 }}>
           <p style={{ fontSize: 12.5, color: "#555", lineHeight: 1.65, marginBottom: 10 }}>{company.reasoning}</p>
+          <ScoreBreakdown sourceData={company.sourceData} />
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {company.sources.map((s) => (
               <span key={s} style={{
@@ -693,6 +694,34 @@ function ResultRow({ company, rank }: { company: ScoredCompany; rank: number }) 
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ScoreBreakdown({ sourceData }: { sourceData: Record<string, unknown> }) {
+  const components = sourceData?.score_breakdown as { label: string; points: number }[] | undefined;
+  if (!components || components.length === 0) return null;
+  const llm = sourceData.llm_score as number | undefined;
+  const evidence = sourceData.evidence_score as number | undefined;
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{
+        fontSize: 9, color: "#2a2a2a", fontFamily: "monospace",
+        letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 5,
+      }}>
+        Evidence {evidence !== undefined ? `· ${evidence}` : ""}{llm !== undefined ? ` / Agent · ${llm}` : ""}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {components.map((c, i) => (
+          <div key={i} style={{
+            display: "flex", justifyContent: "space-between", gap: 12,
+            fontSize: 11, fontFamily: "monospace", color: "#3a3a3a",
+          }}>
+            <span>{c.label}</span>
+            <span style={{ color: "#555", flexShrink: 0 }}>+{c.points}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
