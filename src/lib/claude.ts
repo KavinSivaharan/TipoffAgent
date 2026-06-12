@@ -8,11 +8,6 @@ function getClient() {
 
 const TOOL_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
-function extractJSON(text: string): string {
-  const match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  return match ? match[1].trim() : text.trim();
-}
-
 function autoCloseJSON(text: string): string {
   let braces = 0;
   let brackets = 0;
@@ -78,48 +73,6 @@ function extractFailedGeneration(err: unknown): string | null {
     }
   }
   return null;
-}
-
-export async function parseThesis(thesis: string): Promise<ThesisCriteria> {
-  const client = getClient();
-  const response = await client.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    messages: [
-      {
-        role: "user",
-        content: `Parse this startup investment thesis into structured criteria. Return JSON only, no markdown.
-
-Thesis: "${thesis}"
-
-Return this exact JSON shape:
-{
-  "industry": "primary industry/sector",
-  "stage": "startup stage (seed, series A, growth, etc)",
-  "signals": ["list of signals to prioritize like hiring, github_activity, funding, launches"],
-  "keywords": ["specific keywords to match against company descriptions"],
-  "raw": "the original thesis"
-}`,
-      },
-    ],
-    temperature: 0.2,
-    max_tokens: 512,
-  });
-
-  const text = response.choices[0]?.message?.content || "";
-  try {
-    return JSON.parse(extractJSON(text));
-  } catch {
-    return {
-      industry: "technology",
-      stage: "any",
-      signals: ["hiring", "github", "funding", "launches"],
-      keywords: thesis
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w) => w.length > 3),
-      raw: thesis,
-    };
-  }
 }
 
 const SYSTEM_PROMPT = `You are Tipoff — an INVESTIGATIVE AGENT, not a search aggregator. Hunt for startups about to break out (momentum, not maturity).
