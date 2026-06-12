@@ -14,6 +14,16 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  if (!process.env.GROQ_API_KEY) {
+    return new Response(
+      JSON.stringify({
+        error:
+          "GROQ_API_KEY is not set. Copy .env.example to .env.local, add your key, and restart the dev server.",
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
