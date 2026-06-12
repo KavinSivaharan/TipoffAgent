@@ -50,7 +50,7 @@ export const toolDefinitions = [
     function: {
       name: "search_github",
       description:
-        "Search GitHub for trending, recently-active repos (>500 stars, pushed in last 60 days). Returns stars, forks, watchers, open_issues, language, topics, pushed_at, created_at — strong developer-momentum signal.",
+        "Fetch GitHub's WEEKLY TRENDING repos and filter by your query keywords (repos over 20k stars are excluded — already broken out). Returns stars, forks, language, trending_stars — strong developer-momentum signal. Note: only surfaces currently-trending repos, not a full GitHub search.",
       parameters: {
         type: "object" as const,
         properties: {
