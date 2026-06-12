@@ -4,6 +4,7 @@ import { runAgentLoop } from "@/lib/claude";
 import { parseThesis } from "@/lib/thesis";
 import { InvestigationEvent } from "@/lib/types";
 import { createRun, finishRun, saveSighting, previousSighting } from "@/lib/db";
+import { notifyNewFinds } from "@/lib/notify";
 
 export async function POST(req: NextRequest) {
   const { thesis } = await req.json();
@@ -68,6 +69,8 @@ export async function POST(req: NextRequest) {
         for (const company of results) {
           send({ type: "result", company });
         }
+
+        await notifyNewFinds(thesis, results);
 
         const newCount = results.filter((c) => c.isNew).length;
         send({
