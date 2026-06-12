@@ -84,6 +84,7 @@ THREE PHASES. The user watches the activity feed live — make every line earn i
 ═══ P1 DISCOVERY ═══
 - Pick 3-5 sources most relevant to THIS thesis (sources: search_yc, search_hackernews, search_hn_hiring, search_github, search_sec_edgar, search_news, search_twitter, search_crunchbase).
 - Use SHORT 2-3 word queries — NOT the verbatim thesis.
+- Call MULTIPLE sources in a single turn when possible — they execute in parallel and you'll get all results at once.
 - Before each call: 1 sentence ("Hypothesis: <thesis-word> startups will surface on YC because...").
 - After each result: 1 sentence synthesis ("Found 3 strong fits: X, Y, Z. Z stands out because...").
 - If a source returns 0, retry ONCE with broader/different keywords before moving on.
@@ -182,7 +183,7 @@ Start your investigation. Think about which sources will be most useful for this
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     // Rate limit buffer
     if (i > 0) {
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 750));
     }
 
     let response;
@@ -310,7 +311,14 @@ Speak about candidates BY NAME in your thinking ("Now investigating Cardinal..."
       break;
     }
 
-    // Execute each tool call
+    // Triage tool calls first (dedup + tracking), then execute the batch in
+    // parallel — sources are independent and Apify actors take seconds each.
+    const pending: {
+      toolCall: NonNullable<typeof assistantMessage.tool_calls>[number];
+      name: string;
+      args: Record<string, unknown>;
+    }[] = [];
+
     for (const toolCall of assistantMessage.tool_calls) {
       const { name } = toolCall.function;
       let args: Record<string, unknown>;
@@ -348,7 +356,6 @@ Speak about candidates BY NAME in your thinking ("Now investigating Cardinal..."
         verificationCallsMade++;
       }
 
-      // Stream tool call event
       onEvent({
         type: "tool_call",
         toolName: name,
@@ -356,58 +363,55 @@ Speak about candidates BY NAME in your thinking ("Now investigating Cardinal..."
         iteration: i + 1,
       });
 
-      // Execute the tool
-      try {
-        const result = await executeTool(name, args);
-        const summary = summarizeToolResult(name, result);
+      pending.push({ toolCall, name, args });
+    }
 
-        // Capture candidate companies surfaced in this result so we can
-        // name them in the verification nudge.
-        if (result.companies) {
-          for (const c of result.companies.slice(0, 8)) {
-            if (!c.name) continue;
-            const key = c.name;
-            const entry = candidates.get(key) || { sources: new Set<string>(), url: c.url };
-            entry.sources.add(name);
-            if (!entry.url && c.url) entry.url = c.url;
-            candidates.set(key, entry);
-          }
-          // Accumulate full raw evidence for deterministic scoring.
-          for (const c of result.companies) {
-            if (!c.name) continue;
-            const key = nameKey(c.name);
-            const list = evidenceMap.get(key) || [];
-            list.push(c);
-            evidenceMap.set(key, list);
-          }
+    const outcomes = await Promise.all(
+      pending.map(async (p) => {
+        try {
+          const result = await executeTool(p.name, p.args);
+          return { ...p, result, summary: summarizeToolResult(p.name, result) };
+        } catch (error) {
+          const errMsg = `Tool error: ${error instanceof Error ? error.message : "unknown error"}`;
+          return { ...p, result: null, summary: errMsg };
         }
+      })
+    );
 
-        onEvent({
-          type: "tool_result",
-          message: summary,
-          toolName: name,
-          iteration: i + 1,
-        });
-
-        messages.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: summary,
-        });
-      } catch (error) {
-        const errMsg = `Tool error: ${error instanceof Error ? error.message : "unknown error"}`;
-        onEvent({
-          type: "tool_result",
-          message: errMsg,
-          toolName: name,
-          iteration: i + 1,
-        });
-        messages.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: errMsg,
-        });
+    for (const o of outcomes) {
+      // Capture candidate companies surfaced in this result so we can
+      // name them in the verification nudge.
+      if (o.result?.companies) {
+        for (const c of o.result.companies.slice(0, 8)) {
+          if (!c.name) continue;
+          const key = c.name;
+          const entry = candidates.get(key) || { sources: new Set<string>(), url: c.url };
+          entry.sources.add(o.name);
+          if (!entry.url && c.url) entry.url = c.url;
+          candidates.set(key, entry);
+        }
+        // Accumulate full raw evidence for deterministic scoring.
+        for (const c of o.result.companies) {
+          if (!c.name) continue;
+          const key = nameKey(c.name);
+          const list = evidenceMap.get(key) || [];
+          list.push(c);
+          evidenceMap.set(key, list);
+        }
       }
+
+      onEvent({
+        type: "tool_result",
+        message: o.summary,
+        toolName: o.name,
+        iteration: i + 1,
+      });
+
+      messages.push({
+        role: "tool",
+        tool_call_id: o.toolCall.id,
+        content: o.summary,
+      });
     }
   }
 
