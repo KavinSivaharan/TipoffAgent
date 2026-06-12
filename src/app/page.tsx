@@ -125,6 +125,12 @@ interface RecentFind {
   seenAt: string;
 }
 
+interface WatchlistItem {
+  id: number;
+  thesis: string;
+  created_at: string;
+}
+
 function timeAgo(iso: string): string {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return "just now";
@@ -141,6 +147,7 @@ export default function Home() {
   const [elapsed, setElapsed] = useState(0);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [recentFinds, setRecentFinds] = useState<RecentFind[]>([]);
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const feedRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -152,14 +159,43 @@ export default function Home() {
 
   async function refreshHistory() {
     try {
-      const res = await fetch("/api/runs");
-      if (!res.ok) return;
-      const data = await res.json();
-      setRuns(data.runs || []);
-      setRecentFinds(data.recentFinds || []);
+      const [runsRes, watchRes] = await Promise.all([
+        fetch("/api/runs"),
+        fetch("/api/watchlist"),
+      ]);
+      if (runsRes.ok) {
+        const data = await runsRes.json();
+        setRuns(data.runs || []);
+        setRecentFinds(data.recentFinds || []);
+      }
+      if (watchRes.ok) {
+        const data = await watchRes.json();
+        setWatchlist(data.watchlist || []);
+      }
     } catch {
       // history is non-critical — ignore
     }
+  }
+
+  const watchedItem = watchlist.find((w) => w.thesis === thesis.trim());
+
+  async function toggleWatch() {
+    if (!thesis.trim()) return;
+    if (watchedItem) {
+      await fetch(`/api/watchlist?id=${watchedItem.id}`, { method: "DELETE" });
+    } else {
+      await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thesis: thesis.trim() }),
+      });
+    }
+    refreshHistory();
+  }
+
+  async function removeWatch(id: number) {
+    await fetch(`/api/watchlist?id=${id}`, { method: "DELETE" });
+    refreshHistory();
   }
 
   useEffect(() => {
@@ -207,9 +243,14 @@ export default function Home() {
     abortRef.current?.abort();
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!thesis.trim() || isInvestigating) return;
+    runInvestigation(thesis);
+  }
+
+  async function runInvestigation(thesisText: string) {
+    if (!thesisText.trim() || isInvestigating) return;
+    setThesis(thesisText);
     setIsInvestigating(true);
     setFeedMessages([]);
     setResults([]);
@@ -221,7 +262,7 @@ export default function Home() {
       const res = await fetch("/api/investigate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ thesis }),
+        body: JSON.stringify({ thesis: thesisText }),
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -442,6 +483,63 @@ export default function Home() {
               ))}
             </div>
 
+            {/* Watchlist */}
+            {watchlist.length > 0 && (
+              <div style={{ marginBottom: 44 }}>
+                <div style={{
+                  fontSize: 10, color: "#252525", fontFamily: "monospace",
+                  letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12,
+                }}>
+                  Watchlist
+                </div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {watchlist.map((w) => (
+                    <div key={w.id} style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      borderBottom: "1px solid #161616",
+                    }}>
+                      <button
+                        onClick={() => runInvestigation(w.thesis)}
+                        style={{
+                          flex: 1, display: "flex", alignItems: "center", gap: 8,
+                          padding: "9px 2px", background: "transparent", border: "none",
+                          cursor: "pointer", textAlign: "left", minWidth: 0,
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.7"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                      >
+                        <span style={{ fontSize: 11, color: "#444", flexShrink: 0 }}>★</span>
+                        <span style={{
+                          fontSize: 12, color: "#777", letterSpacing: "-0.01em",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>
+                          {w.thesis}
+                        </span>
+                        <span style={{
+                          fontSize: 10, color: "#2e2e2e", fontFamily: "monospace",
+                          flexShrink: 0, marginLeft: "auto",
+                        }}>
+                          run ↗
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => removeWatch(w.id)}
+                        title="Remove from watchlist"
+                        style={{
+                          background: "transparent", border: "none", color: "#2a2a2a",
+                          fontSize: 12, cursor: "pointer", padding: "4px 2px", flexShrink: 0,
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#c0392b")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#2a2a2a")}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Recent finds — real data once you've run an investigation */}
             <div style={{ marginBottom: 44 }}>
               <div style={{
@@ -565,6 +663,24 @@ export default function Home() {
                   ? `Scanning · ${elapsed}s${results.length > 0 ? ` · ${results.length} found` : ""}`
                   : `Complete · ${results.length} results · ${elapsed}s`}
               </span>
+              {!isInvestigating && thesis.trim() && (
+                <button
+                  onClick={toggleWatch}
+                  title={watchedItem ? "Remove from watchlist" : "Save thesis to watchlist"}
+                  style={{
+                    marginLeft: "auto", background: "transparent",
+                    border: "1px solid #1e1e1e", borderRadius: 4,
+                    padding: "3px 10px", fontSize: 10, fontFamily: "monospace",
+                    letterSpacing: "0.05em", cursor: "pointer",
+                    color: watchedItem ? "#e8e8e8" : "#444",
+                    transition: "all 0.1s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#333")}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#1e1e1e")}
+                >
+                  {watchedItem ? "★ WATCHING" : "☆ WATCH"}
+                </button>
+              )}
             </div>
 
             {/* Feed */}
