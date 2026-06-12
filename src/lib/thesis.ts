@@ -7,6 +7,7 @@ const KNOWN_SOURCES = [
   "search_github",
   "search_sec_edgar",
   "search_news",
+  "search_twitter",
   "scrape_website",
 ] as const;
 
